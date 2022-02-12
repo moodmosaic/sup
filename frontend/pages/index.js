@@ -14,11 +14,8 @@ import {
     cvToHex,
     makeStandardSTXPostCondition,
     FungibleConditionCode,
+    callReadOnlyFunction,
 } from "@stacks/transactions";
-import {
-    Configuration,
-    SmartContractsApi,
-} from "@stacks/blockchain-api-client";
 import useInterval from "@use-it/interval";
 import { StacksMocknet } from "@stacks/network";
 
@@ -28,7 +25,6 @@ export default function Home() {
 
     const [message, setMessage] = useState("");
     const [price, setPrice] = useState(5);
-    const [userAddress, setUserAddress] = useState("");
     const [supContractAddress, setSupContractAddress] = useState(
         "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
     );
@@ -36,11 +32,11 @@ export default function Home() {
     const [postedMessage, setPostedMessage] = useState("none");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
+    const [userData, setUserData] = useState({});
+    const [loggedIn, setLoggedIn] = useState(false);
 
     // Set up the network and API
     const network = new StacksMocknet();
-    const apiConfig = new Configuration({ basePath: network.coreApiUrl });
-    const client = new SmartContractsApi(apiConfig);
 
     const handleMessageChange = (e) => {
         setMessage(e.target.value);
@@ -55,7 +51,8 @@ export default function Home() {
 
         const functionArgs = [stringUtf8CV(message), uintCV(price * 1000000)];
 
-        const postConditionAddress = userAddress;
+        const postConditionAddress =
+            userSession.loadUserData().profile.stxAddress.testnet;
         const postConditionCode = FungibleConditionCode.LessEqual;
         const postConditionAmount = price * 1000000;
         const postConditions = [
@@ -75,7 +72,7 @@ export default function Home() {
             postConditions,
             appDetails: {
                 name: "Sup",
-                icon: window.location.origin + "/vercel.svg",
+                icon: "https://assets.website-files.com/618b0aafa4afde65f2fe38fe/618b0aafa4afde2ae1fe3a1f_icon-isotipo.svg",
             },
             onFinish: (data) => {
                 console.log(data);
@@ -85,48 +82,31 @@ export default function Home() {
         await openContractCall(options);
     };
 
-    useEffect(() => {
-        if (localStorage.getItem("userAddress") !== null) {
-            setUserAddress(localStorage.getItem("userAddress"));
-        }
-    }, []);
-
-    const getMessage = useCallback(() => {
-        if (userAddress.length > 0) {
-            const request = {
+    const getMessage = useCallback(async () => {
+        if (
+            userSession &&
+            userSession.isUserSignedIn() &&
+            userSession.loadUserData()
+        ) {
+            const userAddress =
+                userSession.loadUserData().profile.stxAddress.testnet;
+            const clarityAddress = standardPrincipalCV(userAddress);
+            const options = {
                 contractAddress: supContractAddress,
                 contractName: supContractName,
                 functionName: "get-message",
                 network,
-                readOnlyFunctionArgs: {
-                    sender: supContractAddress,
-                    arguments: [cvToHex(standardPrincipalCV(userAddress))],
-                },
+                functionArgs: [clarityAddress],
+                senderAddress: userAddress,
             };
 
-            client
-                .callReadOnlyFunction(request)
-                .then((response) => {
-                    setError("");
-                    if (
-                        response.okay &&
-                        response.result &&
-                        hexToCV(response.result).value !== undefined
-                    ) {
-                        setPostedMessage(hexToCV(response.result).value.data);
-                    }
-                    setLoading(false);
-                })
-                .catch((error) => {
-                    console.log(error);
-                    setLoading(false);
-                    setError(error.message);
-                });
+            const result = await callReadOnlyFunction(options);
+            setPostedMessage(result.value.data);
         }
-    }, [client, supContractAddress, supContractName]);
+    }, []);
 
     // Run the getMessage function at load to get the message from the contract
-    useEffect(getMessage, [userAddress]);
+    useEffect(getMessage, [userSession]);
 
     // Poll the Stacks API every 30 seconds looking for changes
     useInterval(getMessage, 30000);
@@ -135,21 +115,26 @@ export default function Home() {
         showConnect({
             appDetails: {
                 name: "Sup",
-                icon: window.location.origin + "/vercel.svg",
+                icon: "https://assets.website-files.com/618b0aafa4afde65f2fe38fe/618b0aafa4afde2ae1fe3a1f_icon-isotipo.svg",
             },
             redirectTo: "/",
             onFinish: () => {
-                let userData = userSession.loadUserData();
-                console.log(userData);
-                setUserAddress(userData.profile.stxAddress.testnet);
-                localStorage.setItem(
-                    "userAddress",
-                    userData.profile.stxAddress.testnet
-                );
+                window.location.reload();
             },
-            userSession: userSession,
+            userSession,
         });
     }
+
+    useEffect(() => {
+        if (userSession.isSignInPending()) {
+            userSession.handlePendingSignIn().then((userData) => {
+                setUserData(userData);
+            });
+        } else if (userSession.isUserSignedIn()) {
+            setLoggedIn(true);
+            setUserData(userSession.loadUserData());
+        }
+    }, []);
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen py-2">
@@ -157,11 +142,10 @@ export default function Home() {
                 <title>Sup</title>
                 <link rel="icon" href="/favicon.ico" />
             </Head>
-
             <main className="flex flex-col items-center justify-center w-full flex-1 px-20 text-center">
                 <div className="flex flex-col w-full items-center justify-center">
                     <h1 className="text-6xl font-bold mb-24">Sup</h1>
-                    {userAddress.length > 0 ? (
+                    {loggedIn ? (
                         <>
                             <form onSubmit={handleSubmit}>
                                 <p>
