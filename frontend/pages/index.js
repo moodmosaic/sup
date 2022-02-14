@@ -101,7 +101,9 @@ export default function Home() {
             };
 
             const result = await callReadOnlyFunction(options);
-            setPostedMessage(result.value.data);
+            if (response.okay && response.result) {
+                setPostedMessage(hexToCV(response.result).value.data);
+            }
         }
     }, []);
 
