@@ -1,7 +1,7 @@
 
-import { Clarinet, Tx, Chain, Account, types } from 'https://deno.land/x/clarinet@v0.14.0/index.ts';
+import { Clarinet, Tx, Chain, Account, types } from 'https://deno.land/x/clarinet@v1.4.0/index.ts';
 import { assert, assertEquals } from 'https://deno.land/std@0.90.0/testing/asserts.ts';
-import fc from 'https://cdn.skypack.dev/fast-check';
+import fc from 'https://cdn.skypack.dev/fast-check@3.6.2';
 
 Clarinet.test({
     name: "Ensure that <...>",
@@ -50,7 +50,7 @@ Clarinet.test({
     // Property-based test, runs 100 times by default.
     fc.assert(fc.property(
       // Generate pseudo-random 'lorem ipsum' string and a number.
-      fc.lorem(), fc.integer(1, 100), (lorem: string, integer: number) => {
+      fc.lorem(), fc.integer({min: 1, max: 100}), (lorem: string, integer: number) => {
         // Arrange
         const deployer = accounts.get('deployer')!;
         const msg = types.utf8(lorem);
@@ -78,7 +78,7 @@ Clarinet.test({
     // Property-based test, runs 100 times by default.
     fc.assert(fc.property(
       // Generate pseudo-random 'lorem ipsum' string and a number.
-      fc.lorem(), fc.integer(1, 100), (lorem: string, integer: number) => {
+      fc.lorem(), fc.integer({min: 1, max: 100}), (lorem: string, integer: number) => {
         // Arrange
         const deployer = accounts.get('deployer')!;
         let startCount = chain.callReadOnlyFn(
@@ -110,7 +110,7 @@ Clarinet.test({
     // Property-based test, runs 100 times by default.
     fc.assert(fc.property(
       // Generate pseudo-random 'lorem ipsum' string and a number.
-      fc.lorem(), fc.integer(1, 100), (lorem: string, integer: number) => {
+      fc.lorem(), fc.integer({min: 1, max: 100}), (lorem: string, integer: number) => {
         // Arrange
         const deployer = accounts.get('deployer')!;
         let startCount = chain.callReadOnlyFn(
